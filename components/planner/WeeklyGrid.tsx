@@ -56,22 +56,25 @@ export default function WeeklyGrid({ days: initial, meals, familyId, weekDates }
     return day[type] ?? null
   }
 
-  async function assignMeal(date: string, mealType: MealType, meal: Meal | null) {
+  async function assignMeal(date: string, mealType: MealType, meal: Meal | null, isLeftover = false) {
     const existing = days.find(d => d.plan_date === date)
     const col = `${mealType}_meal_id`
+    const leftoverCol = `${mealType}_is_leftover`
+    const select = '*, breakfast:breakfast_meal_id(*), lunch:lunch_meal_id(*), snack:snack_meal_id(*), dinner:dinner_meal_id(*)'
+    const patch = { [col]: meal?.id ?? null, [leftoverCol]: meal ? isLeftover : false }
     if (existing) {
       const { data } = await supabase
         .from('meal_plan_days')
-        .update({ [col]: meal?.id ?? null })
+        .update(patch)
         .eq('id', existing.id)
-        .select('*, breakfast:breakfast_meal_id(*), lunch:lunch_meal_id(*), snack:snack_meal_id(*), dinner:dinner_meal_id(*)')
+        .select(select)
         .single()
       if (data) setDays(d => d.map(x => x.id === data.id ? data : x))
     } else {
       const { data } = await supabase
         .from('meal_plan_days')
-        .insert({ family_id: familyId, plan_date: date, [col]: meal?.id ?? null })
-        .select('*, breakfast:breakfast_meal_id(*), lunch:lunch_meal_id(*), snack:snack_meal_id(*), dinner:dinner_meal_id(*)')
+        .insert({ family_id: familyId, plan_date: date, ...patch })
+        .select(select)
         .single()
       if (data) setDays(d => [...d, data])
     }
@@ -127,20 +130,29 @@ export default function WeeklyGrid({ days: initial, meals, familyId, weekDates }
                 {weekDates.map(date => {
                   const day = getDay(date)
                   const meal = getMeal(day, type)
+                  const isLeftover = !!day?.[`${type}_is_leftover` as keyof MealPlanDay]
+                  const prefix = meal?.is_outside ? '🍴 ' : isLeftover ? '♻️ ' : ''
                   return (
                     <td key={date} className="py-1 px-1">
                       <button
                         onClick={() => setPicking({ date, mealType: type })}
                         className={`w-full min-h-[52px] rounded-lg border text-left p-2 text-xs transition-colors ${
                           meal
-                            ? 'bg-blue-50 border-blue-200 text-blue-900'
+                            ? meal.is_outside
+                              ? 'bg-amber-50 border-amber-200 text-amber-900'
+                              : isLeftover
+                                ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                                : 'bg-blue-50 border-blue-200 text-blue-900'
                             : 'border-dashed border-gray-200 text-gray-300 hover:border-blue-300 hover:text-blue-400'
                         }`}
                       >
                         {meal ? (
                           <>
-                            <p className="font-medium leading-tight line-clamp-2">{meal.name}</p>
-                            <p className="text-blue-400 mt-0.5">{meal.calories} kcal</p>
+                            <p className="font-medium leading-tight line-clamp-2">{prefix}{meal.name}</p>
+                            <p className="mt-0.5 opacity-60">
+                              {meal.is_outside ? 'Eating out' : isLeftover ? 'Leftovers' : `${meal.calories} kcal`}
+                              {meal.prep_ahead_note ? ' · 🌙 prep' : ''}
+                            </p>
                           </>
                         ) : (
                           <span className="block text-center pt-2">+</span>
@@ -158,7 +170,7 @@ export default function WeeklyGrid({ days: initial, meals, familyId, weekDates }
         <MealPickerModal
           meals={meals}
           mealType={picking.mealType}
-          onSelect={meal => assignMeal(picking.date, picking.mealType, meal)}
+          onSelect={(meal, isLeftover) => assignMeal(picking.date, picking.mealType, meal, isLeftover)}
           onClear={() => assignMeal(picking.date, picking.mealType, null)}
           onClose={() => setPicking(null)}
         />

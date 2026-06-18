@@ -6,13 +6,14 @@ import { MEAL_TYPE_LABELS } from '@/types'
 interface Props {
   meals: Meal[]
   mealType: MealType
-  onSelect: (meal: Meal) => void
+  onSelect: (meal: Meal, isLeftover: boolean) => void
   onClear: () => void
   onClose: () => void
 }
 
 export default function MealPickerModal({ meals, mealType, onSelect, onClear, onClose }: Props) {
   const [filter, setFilter] = useState('')
+  const [leftover, setLeftover] = useState(false)
   const options = meals.filter(
     m => m.meal_type === mealType &&
       (!filter || m.name.toLowerCase().includes(filter.toLowerCase()))
@@ -24,12 +25,20 @@ export default function MealPickerModal({ meals, mealType, onSelect, onClear, on
         <h2 className="text-lg font-semibold mb-3">Pick {MEAL_TYPE_LABELS[mealType]}</h2>
         <input value={filter} onChange={e => setFilter(e.target.value)} placeholder="Filter meals…"
           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-3" />
+        <label className="flex items-center gap-2 text-sm text-gray-700 mb-3">
+          <input type="checkbox" checked={leftover} onChange={e => setLeftover(e.target.checked)} />
+          ♻️ This is leftovers from an earlier day
+        </label>
         <div className="flex flex-col gap-2 max-h-72 overflow-y-auto">
           {options.map(m => (
-            <button key={m.id} onClick={() => onSelect(m)}
+            <button key={m.id} onClick={() => onSelect(m, leftover)}
               className="text-left border border-gray-200 rounded-lg p-3 hover:bg-blue-50">
-              <p className="text-sm font-medium">{m.name}</p>
-              <p className="text-xs text-gray-400">{m.calories} kcal · {m.protein_g}g P · {m.carbs_g}g C · {m.fat_g}g F</p>
+              <p className="text-sm font-medium">
+                {m.is_outside && '🍴 '}{m.name}
+              </p>
+              <p className="text-xs text-gray-400">
+                {m.is_outside ? 'Eating out' : `${m.calories} kcal · ${m.protein_g}g P · ${m.carbs_g}g C · ${m.fat_g}g F`}
+              </p>
             </button>
           ))}
           {options.length === 0 && <p className="text-sm text-gray-400 py-4 text-center">No meals match</p>}
