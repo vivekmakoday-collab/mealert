@@ -28,7 +28,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="bg-white rounded-xl shadow p-8 w-full max-w-sm">
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">🍽 MealAlert</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-1">🍽 Makoday's Meal</h1>
         <p className="text-gray-500 text-sm mb-6">Sign in to manage your family meals</p>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div>

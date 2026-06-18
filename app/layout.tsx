@@ -7,7 +7,7 @@ import TopNav from '@/components/TopNav'
 const geist = Geist({ variable: '--font-geist-sans', subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'MealAlert',
+  title: "Makoday's Meal",
   description: 'Family meal planning and daily digest',
 }
 
@@ -15,7 +15,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  let familyName = 'MealAlert'
+  let familyName = "Makoday's Meal"
   if (user) {
     const familyId = user.user_metadata?.family_id
     if (familyId) {
