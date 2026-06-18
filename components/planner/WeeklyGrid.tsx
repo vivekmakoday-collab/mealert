@@ -21,6 +21,28 @@ export default function WeeklyGrid({ days: initial, meals, familyId, weekDates }
   const supabase = createClient()
   const [days, setDays] = useState<MealPlanDay[]>(initial)
   const [picking, setPicking] = useState<Picking | null>(null)
+  const [autoFilling, setAutoFilling] = useState(false)
+  const [autoMsg, setAutoMsg] = useState<string | null>(null)
+
+  async function autoFill() {
+    setAutoFilling(true)
+    setAutoMsg(null)
+    try {
+      const res = await fetch('/api/autopopulate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ weekDates }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed')
+      if (Array.isArray(data.days)) setDays(data.days)
+      setAutoMsg(data.filled > 0 ? `Filled ${data.filled} slot${data.filled === 1 ? '' : 's'}` : (data.message || 'Nothing to fill'))
+    } catch (e) {
+      setAutoMsg(String(e))
+    } finally {
+      setAutoFilling(false)
+    }
+  }
 
   function getDay(date: string) {
     return days.find(d => d.plan_date === date) ?? null
@@ -57,6 +79,16 @@ export default function WeeklyGrid({ days: initial, meals, familyId, weekDates }
 
   return (
     <div>
+      <div className="flex items-center gap-3 mb-4">
+        <button
+          onClick={autoFill}
+          disabled={autoFilling}
+          className="bg-gradient-to-r from-violet-600 to-blue-600 text-white rounded-lg px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50"
+        >
+          {autoFilling ? '✨ Thinking…' : '✨ Auto-fill empty slots with AI'}
+        </button>
+        {autoMsg && <span className="text-sm text-gray-500">{autoMsg}</span>}
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full border-collapse min-w-[700px]">
           <thead>
