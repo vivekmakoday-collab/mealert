@@ -89,20 +89,24 @@ export default function MealForm({ familyId, meal, onDone }: Props) {
   }
 
   async function generate() {
-    if (!aiDish.trim()) return
+    const dish = aiDish.trim() || name.trim()
+    if (!dish) {
+      setError('Enter a dish name (in the ✨ box or the Name field) to generate a recipe.')
+      return
+    }
     setGenerating(true)
     setError(null)
     try {
       const res = await fetch('/api/recipe/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dish: aiDish, servings: parseInt(aiServings) || 6 }),
+        body: JSON.stringify({ dish, servings: parseInt(aiServings) || 6 }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed')
+      if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`)
       applyRecipe(data as RecipeSpec)
     } catch (e) {
-      setError(String(e))
+      setError(e instanceof Error ? e.message : String(e))
     } finally {
       setGenerating(false)
     }
