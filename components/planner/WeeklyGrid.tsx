@@ -24,19 +24,22 @@ export default function WeeklyGrid({ days: initial, meals, familyId, weekDates }
   const [autoFilling, setAutoFilling] = useState(false)
   const [autoMsg, setAutoMsg] = useState<string | null>(null)
 
-  async function autoFill() {
+  async function autoFill(overwrite: boolean) {
+    if (overwrite && !confirm('Replace every meal in this week with fresh AI suggestions? Meals you planned will be overwritten.')) {
+      return
+    }
     setAutoFilling(true)
     setAutoMsg(null)
     try {
       const res = await fetch('/api/autopopulate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ weekDates }),
+        body: JSON.stringify({ weekDates, overwrite }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed')
       if (Array.isArray(data.days)) setDays(data.days)
-      setAutoMsg(data.filled > 0 ? `Filled ${data.filled} slot${data.filled === 1 ? '' : 's'}` : (data.message || 'Nothing to fill'))
+      setAutoMsg(data.filled > 0 ? `Updated ${data.filled} slot${data.filled === 1 ? '' : 's'}` : (data.message || 'Nothing to fill'))
     } catch (e) {
       setAutoMsg(String(e))
     } finally {
@@ -79,17 +82,29 @@ export default function WeeklyGrid({ days: initial, meals, familyId, weekDates }
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex flex-wrap items-center gap-3 mb-4">
         <button
-          onClick={autoFill}
+          onClick={() => autoFill(false)}
           disabled={autoFilling}
-          className="bg-gradient-to-r from-violet-600 to-blue-600 text-white rounded-lg px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50"
+          className="bg-gradient-to-r from-violet-600 to-blue-600 text-white rounded-lg px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50 inline-flex items-center gap-2"
         >
-          {autoFilling ? '✨ Thinking…' : '✨ Auto-fill empty slots with AI'}
+          {autoFilling && (
+            <span className="inline-block w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+          )}
+          {autoFilling ? 'Thinking…' : '✨ Auto-fill empty slots'}
+        </button>
+        <button
+          onClick={() => autoFill(true)}
+          disabled={autoFilling}
+          className="border border-gray-300 text-gray-700 rounded-lg px-4 py-2 text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
+        >
+          🔄 Regenerate whole week
         </button>
         {autoMsg && <span className="text-sm text-gray-500">{autoMsg}</span>}
       </div>
-      <div className="overflow-x-auto">
+      <div
+        className={`overflow-x-auto transition-opacity ${autoFilling ? 'opacity-50 pointer-events-none' : ''}`}
+      >
         <table className="w-full border-collapse min-w-[700px]">
           <thead>
             <tr>

@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   const familyId = user.user_metadata?.family_id
   if (!familyId) return NextResponse.json({ error: 'No family' }, { status: 400 })
 
-  const { weekDates } = (await req.json()) as { weekDates: string[] }
+  const { weekDates, overwrite } = (await req.json()) as { weekDates: string[]; overwrite?: boolean }
   if (!Array.isArray(weekDates) || weekDates.length === 0) {
     return NextResponse.json({ error: 'weekDates required' }, { status: 400 })
   }
@@ -34,13 +34,14 @@ export async function POST(req: NextRequest) {
   const dayByDate = new Map<string, MealPlanDay>()
   for (const d of existingDays ?? []) dayByDate.set(d.plan_date, d as MealPlanDay)
 
-  // Determine which slots are empty (null meal id)
+  // Determine which slots to fill. With overwrite, regenerate every slot;
+  // otherwise only the empty ones.
   const emptySlots: EmptySlot[] = []
   for (const date of weekDates) {
     const day = dayByDate.get(date)
     for (const type of MEAL_TYPES) {
       const filled = day?.[`${type}_meal_id` as keyof MealPlanDay]
-      if (!filled) emptySlots.push({ date, meal_type: type })
+      if (overwrite || !filled) emptySlots.push({ date, meal_type: type })
     }
   }
 
@@ -98,15 +99,15 @@ export async function POST(req: NextRequest) {
     for (const type of MEAL_TYPES) {
       const col = `${type}_meal_id`
       const current = existing?.[col as keyof MealPlanDay] as string | null | undefined
-      if (current) {
+      const picked = slotMealId.get(`${date}|${type}`)
+      if (!overwrite && current) {
         row[col] = current // preserve already-planned meal
-      } else {
-        const picked = slotMealId.get(`${date}|${type}`)
-        if (picked) {
-          row[col] = picked
-          touched = true
-          filled++
-        }
+      } else if (picked) {
+        row[col] = picked // new pick (empty slot, or overwriting)
+        touched = true
+        filled++
+      } else if (current) {
+        row[col] = current // overwrite mode but AI returned nothing — keep existing
       }
     }
     if (!touched && !existing) continue // nothing to write for this day
