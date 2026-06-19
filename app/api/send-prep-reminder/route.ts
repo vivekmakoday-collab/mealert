@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
   const results = await Promise.allSettled(
     emails.map(to =>
       resend.emails.send({
-        from: 'MealAlert <digest@yourdomain.com>',
+        from: process.env.EMAIL_FROM || 'MealAlert <onboarding@resend.dev>',
         to,
         subject: `🌙 Prep reminder: ${items.length} thing${items.length === 1 ? '' : 's'} to prep tonight`,
         html,
