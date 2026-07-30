@@ -1,8 +1,6 @@
-import Anthropic from '@anthropic-ai/sdk'
+import { generateJSON } from '@/lib/ai'
 import type { Meal, MealType, Member } from '@/types'
 import { MEAL_TYPES } from '@/types'
-
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 export interface EmptySlot {
   date: string
@@ -26,57 +24,6 @@ export interface SlotAssignment {
   meal_type: MealType
   existing_meal_id?: string
   new_meal?: NewMealSpec
-}
-
-const newMealSchema = {
-  type: 'object',
-  properties: {
-    name: { type: 'string' },
-    description: { type: 'string' },
-    meal_type: { type: 'string', enum: MEAL_TYPES },
-    calories: { type: 'integer' },
-    protein_g: { type: 'integer' },
-    carbs_g: { type: 'integer' },
-    fat_g: { type: 'integer' },
-    tags: { type: 'array', items: { type: 'string' } },
-  },
-  required: ['name', 'description', 'meal_type', 'calories', 'protein_g', 'carbs_g', 'fat_g', 'tags'],
-  additionalProperties: false,
-}
-
-const responseSchema = {
-  type: 'object',
-  properties: {
-    assignments: {
-      type: 'array',
-      items: {
-        anyOf: [
-          {
-            type: 'object',
-            properties: {
-              date: { type: 'string' },
-              meal_type: { type: 'string', enum: MEAL_TYPES },
-              existing_meal_id: { type: 'string' },
-            },
-            required: ['date', 'meal_type', 'existing_meal_id'],
-            additionalProperties: false,
-          },
-          {
-            type: 'object',
-            properties: {
-              date: { type: 'string' },
-              meal_type: { type: 'string', enum: MEAL_TYPES },
-              new_meal: newMealSchema,
-            },
-            required: ['date', 'meal_type', 'new_meal'],
-            additionalProperties: false,
-          },
-        ],
-      },
-    },
-  },
-  required: ['assignments'],
-  additionalProperties: false,
 }
 
 function summarizeFamily(members: Member[]): string {
@@ -113,19 +60,25 @@ export async function suggestMeals(
 
   const system = `You are a meal planner for an Indian Hindu vegetarian (lacto-vegetarian: no meat, fish, or eggs) family. You build balanced, high-protein weekly meal plans. Prefer reusing meals from the existing library when a good fit exists; only invent a new meal when the library lacks a suitable option for a slot. New meals must be lacto-vegetarian, realistic, and include sensible per-serving macro estimates. Vary meals across the week — avoid assigning the same meal to the same slot on consecutive days. Honor every family member's dietary restrictions and allergies as hard constraints; treat likes/dislikes and macro targets as strong preferences.`
 
-  const user = `Family preferences:\n${summarizeFamily(members)}\n\nExisting meal library:\n${libraryByType}\n\nFill these empty meal-plan slots (one assignment each):\n${slotsList}\n\nFor each slot, return either an existing_meal_id (must be one of the ids above and match the slot's meal type) or a new_meal object (whose meal_type matches the slot). Return exactly one assignment per slot listed.`
+  const user = `Family preferences:
+${summarizeFamily(members)}
 
-  const response = await anthropic.messages.create({
-    model: 'claude-opus-4-8',
-    max_tokens: 16000,
-    system,
-    output_config: { format: { type: 'json_schema', schema: responseSchema } },
-    messages: [{ role: 'user', content: user }],
-  } as Anthropic.MessageCreateParamsNonStreaming)
+Existing meal library:
+${libraryByType}
 
-  const textBlock = response.content.find(b => b.type === 'text')
-  if (!textBlock || textBlock.type !== 'text') throw new Error('No response from model')
+Fill these empty meal-plan slots (one assignment each):
+${slotsList}
 
-  const parsed = JSON.parse(textBlock.text) as { assignments: SlotAssignment[] }
-  return parsed.assignments
+Respond with ONLY a JSON object of this exact shape:
+{
+  "assignments": [
+    { "date": "YYYY-MM-DD", "meal_type": "breakfast|lunch|snack|dinner", "existing_meal_id": "<one of the ids above>" }
+    // OR, when no library meal fits:
+    // { "date": "...", "meal_type": "...", "new_meal": { "name": "", "description": "", "meal_type": "", "calories": 0, "protein_g": 0, "carbs_g": 0, "fat_g": 0, "tags": [] } }
+  ]
+}
+Rules: exactly one assignment per slot listed; each meal_type must match its slot; existing_meal_id must be a real id from the library above; new_meal is only for slots with no good library match. Return valid JSON, no prose.`
+
+  const parsed = await generateJSON<{ assignments: SlotAssignment[] }>(system, user)
+  return parsed.assignments ?? []
 }
