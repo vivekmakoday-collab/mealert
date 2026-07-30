@@ -13,11 +13,16 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
 
+  let user = null
   let familyName = "Makoday's Meal"
-  if (user) {
-    const familyId = user.user_metadata?.family_id
+  try {
+    const result = await Promise.race([
+      supabase.auth.getUser(),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('auth timeout')), 3000)),
+    ])
+    user = result.data.user
+    const familyId = user?.user_metadata?.family_id
     if (familyId) {
       const { data } = await supabase
         .from('families')
@@ -26,6 +31,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         .single()
       if (data) familyName = data.name
     }
+  } catch {
+    user = null
   }
 
   return (

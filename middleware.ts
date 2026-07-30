@@ -21,7 +21,18 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  // Guard the auth call so a slow/unreachable Supabase can't hang the whole
+  // site (Vercel kills middleware at 25s → 504). Fail fast to /login instead.
+  let user = null
+  try {
+    const result = await Promise.race([
+      supabase.auth.getUser(),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('auth timeout')), 3000)),
+    ])
+    user = result.data.user
+  } catch {
+    user = null
+  }
   const isLoginPage = request.nextUrl.pathname === '/login'
 
   if (!user && !isLoginPage) {
