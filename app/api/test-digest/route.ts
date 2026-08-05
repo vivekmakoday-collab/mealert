@@ -34,7 +34,21 @@ export async function POST() {
   })
 
   if (error) {
-    return NextResponse.json({ error: `Resend: ${error.message || JSON.stringify(error)}` }, { status: 502 })
+    // Safe diagnostics: presence/shape only, never the secret itself.
+    const key = process.env.RESEND_API_KEY ?? ''
+    return NextResponse.json(
+      {
+        error: `Resend: ${error.message || JSON.stringify(error)}`,
+        diagnostics: {
+          keyPresent: key.length > 0,
+          keyStartsWithRe: key.startsWith('re_'),
+          keyLength: key.length,
+          hasWhitespace: key !== key.trim(),
+          from: process.env.EMAIL_FROM || 'MealAlert <onboarding@resend.dev>',
+        },
+      },
+      { status: 502 }
+    )
   }
   return NextResponse.json({ ok: true, id: data?.id, to: user.email })
 }

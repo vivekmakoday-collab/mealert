@@ -31,7 +31,13 @@ export default function SettingsForm({ family }: { family: Family }) {
     try {
       const res = await fetch('/api/test-digest', { method: 'POST' })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || `Failed (${res.status})`)
+      if (!res.ok) {
+        const d = data.diagnostics
+        const detail = d
+          ? ` [key present: ${d.keyPresent}, starts with re_: ${d.keyStartsWithRe}, length: ${d.keyLength}, stray whitespace: ${d.hasWhitespace}, from: ${d.from}]`
+          : ''
+        throw new Error((data.error || `Failed (${res.status})`) + detail)
+      }
       setTestMsg({ ok: true, text: `Sent to ${data.to}. Check your inbox (and spam).` })
     } catch (e) {
       setTestMsg({ ok: false, text: e instanceof Error ? e.message : String(e) })
