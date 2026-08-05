@@ -8,9 +8,21 @@ function today() {
   return new Date().toISOString().split('T')[0]
 }
 
+function tomorrow() {
+  const d = new Date()
+  d.setDate(d.getDate() + 1)
+  return d.toISOString().split('T')[0]
+}
+
 interface MealSlot {
   type: MealType
   meal: Meal | null
+}
+
+interface PrepItem {
+  slotLabel: string
+  mealName: string
+  note: string
 }
 
 export default async function DashboardPage() {
@@ -20,14 +32,13 @@ export default async function DashboardPage() {
 
   const familyId = user.user_metadata?.family_id
   const todayDate = today()
+  const tomorrowDate = tomorrow()
 
-  const [{ data: planDay }, { data: members }, { count: mealCount }] = await Promise.all([
-    supabase
-      .from('meal_plan_days')
-      .select('*, breakfast:breakfast_meal_id(*), lunch:lunch_meal_id(*), snack:snack_meal_id(*), dinner:dinner_meal_id(*)')
-      .eq('family_id', familyId)
-      .eq('plan_date', todayDate)
-      .single(),
+  const daySelect = '*, breakfast:breakfast_meal_id(*), lunch:lunch_meal_id(*), snack:snack_meal_id(*), dinner:dinner_meal_id(*)'
+
+  const [{ data: planDay }, { data: tomorrowDay }, { data: members }, { count: mealCount }] = await Promise.all([
+    supabase.from('meal_plan_days').select(daySelect).eq('family_id', familyId).eq('plan_date', todayDate).single(),
+    supabase.from('meal_plan_days').select(daySelect).eq('family_id', familyId).eq('plan_date', tomorrowDate).single(),
     supabase.from('members').select('id, name').eq('family_id', familyId),
     supabase.from('meals').select('*', { count: 'exact', head: true }).eq('family_id', familyId),
   ])
@@ -36,6 +47,19 @@ export default async function DashboardPage() {
     type,
     meal: planDay ? (planDay[type] as Meal | null) : null,
   }))
+
+  // Anything to soak / marinate tonight for tomorrow's meals
+  const prepItems: PrepItem[] = MEAL_TYPES.flatMap(type => {
+    const meal = tomorrowDay ? (tomorrowDay[type] as Meal | null) : null
+    if (meal?.prep_ahead_note && meal.prep_ahead_note.trim()) {
+      return [{ slotLabel: MEAL_TYPE_LABELS[type], mealName: meal.name, note: meal.prep_ahead_note.trim() }]
+    }
+    return []
+  })
+
+  const tomorrowLabel = new Date(tomorrowDate + 'T12:00:00').toLocaleDateString('en-US', {
+    weekday: 'long', month: 'short', day: 'numeric',
+  })
 
   const dateLabel = new Date().toLocaleDateString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric',
@@ -47,6 +71,26 @@ export default async function DashboardPage() {
         <h1 className="text-2xl font-bold text-gray-900">Today's Meals</h1>
         <p className="text-gray-500 text-sm mt-1">{dateLabel}</p>
       </div>
+
+      {prepItems.length > 0 && (
+        <div className="mb-8 rounded-xl border border-amber-300 bg-amber-50 p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-lg">🌙</span>
+            <h2 className="font-semibold text-amber-900">Prep tonight for {tomorrowLabel}</h2>
+          </div>
+          <ul className="flex flex-col gap-2">
+            {prepItems.map((item, i) => (
+              <li key={i} className="flex items-start gap-2 text-sm text-amber-900">
+                <span className="mt-0.5">✅</span>
+                <span>
+                  <span className="font-medium">{item.note}</span>
+                  <span className="text-amber-700"> — for {item.slotLabel.replace(/^[^\s]+\s/, '')} ({item.mealName})</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
         {slots.map(({ type, meal }) => (
