@@ -58,10 +58,12 @@ export async function POST(req: NextRequest) {
 
   // Resolve each assignment to a meal id (insert invented meals as we go)
   const validIds = new Set((library ?? []).map(m => m.id))
-  const slotMealId = new Map<string, string>() // key: `${date}|${type}`
+  const slotMealId = new Map<string, string>()   // key: `${date}|${type}`
+  const slotLeftover = new Map<string, boolean>() // key: `${date}|${type}`
 
   for (const a of assignments) {
     const key = `${a.date}|${a.meal_type}`
+    slotLeftover.set(key, !!a.is_leftover)
     if (a.existing_meal_id && validIds.has(a.existing_meal_id)) {
       slotMealId.set(key, a.existing_meal_id)
     } else if (a.new_meal) {
@@ -98,16 +100,22 @@ export async function POST(req: NextRequest) {
     let touched = false
     for (const type of MEAL_TYPES) {
       const col = `${type}_meal_id`
+      const leftoverCol = `${type}_is_leftover`
       const current = existing?.[col as keyof MealPlanDay] as string | null | undefined
-      const picked = slotMealId.get(`${date}|${type}`)
+      const currentLeftover = existing?.[leftoverCol as keyof MealPlanDay] as boolean | undefined
+      const key = `${date}|${type}`
+      const picked = slotMealId.get(key)
       if (!overwrite && current) {
         row[col] = current // preserve already-planned meal
+        row[leftoverCol] = currentLeftover ?? false
       } else if (picked) {
         row[col] = picked // new pick (empty slot, or overwriting)
+        row[leftoverCol] = slotLeftover.get(key) ?? false
         touched = true
         filled++
       } else if (current) {
         row[col] = current // overwrite mode but AI returned nothing — keep existing
+        row[leftoverCol] = currentLeftover ?? false
       }
     }
     if (!touched && !existing) continue // nothing to write for this day
