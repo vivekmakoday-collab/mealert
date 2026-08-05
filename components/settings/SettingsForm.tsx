@@ -34,7 +34,7 @@ export default function SettingsForm({ family }: { family: Family }) {
       if (!res.ok) {
         const d = data.diagnostics
         const detail = d
-          ? ` [key present: ${d.keyPresent}, starts with re_: ${d.keyStartsWithRe}, length: ${d.keyLength}, stray whitespace: ${d.hasWhitespace}, from: ${d.from}]`
+          ? ` [provider: ${d.provider}, from: ${d.from}, SMTP user set: ${d.smtpUserSet}, SMTP pass set: ${d.smtpPassSet}, Resend key set: ${d.resendKeySet}]`
           : ''
         throw new Error((data.error || `Failed (${res.status})`) + detail)
       }

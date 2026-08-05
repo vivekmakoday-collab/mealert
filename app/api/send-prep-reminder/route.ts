@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { render } from '@react-email/render'
-import { resend } from '@/lib/resend'
+import { sendMail } from '@/lib/mailer'
 import { getPrepItems } from '@/lib/prep'
 import { getMemberEmails } from '@/lib/digest'
 import { createServiceClient } from '@/lib/supabase-server'
@@ -35,10 +35,9 @@ export async function POST(req: NextRequest) {
   }
 
   const html = await render(PrepReminderEmail({ family, date, items }))
-  const results = await Promise.allSettled(
+  const results = await Promise.all(
     emails.map(to =>
-      resend.emails.send({
-        from: process.env.EMAIL_FROM || 'MealAlert <onboarding@resend.dev>',
+      sendMail({
         to,
         subject: `🌙 Prep reminder: ${items.length} thing${items.length === 1 ? '' : 's'} to prep tonight`,
         html,
@@ -46,6 +45,6 @@ export async function POST(req: NextRequest) {
     )
   )
 
-  const sent = results.filter(r => r.status === 'fulfilled').length
+  const sent = results.filter(r => r.ok).length
   return NextResponse.json({ sent, total: emails.length, items: items.length })
 }
