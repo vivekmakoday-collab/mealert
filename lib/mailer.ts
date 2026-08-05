@@ -13,15 +13,29 @@ export interface SendResult {
 }
 
 function provider(): 'resend' | 'smtp' {
-  return (process.env.EMAIL_PROVIDER ?? 'resend') === 'smtp' ? 'smtp' : 'resend'
+  // Case/whitespace tolerant — "SMTP", " smtp " etc. all work.
+  return (process.env.EMAIL_PROVIDER ?? 'resend').trim().toLowerCase() === 'smtp'
+    ? 'smtp'
+    : 'resend'
 }
 
 export function fromAddress(): string {
-  if (process.env.EMAIL_FROM) return process.env.EMAIL_FROM.trim()
-  if (provider() === 'smtp' && process.env.SMTP_USER) {
-    return `MealAlert <${process.env.SMTP_USER.trim()}>`
+  const smtpUser = (process.env.SMTP_USER ?? '').trim()
+  const configured = (process.env.EMAIL_FROM ?? '').trim()
+  const host = (process.env.SMTP_HOST ?? 'smtp.gmail.com').trim().toLowerCase()
+
+  if (provider() === 'smtp' && smtpUser) {
+    // Gmail only lets you send as the authenticated account (or a verified
+    // alias). A stale EMAIL_FROM pointing at some other domain would be
+    // rewritten or rejected — so ignore it on Gmail.
+    if (host.includes('gmail.com')) {
+      const matchesUser = configured.toLowerCase().includes(smtpUser.toLowerCase())
+      return matchesUser && configured ? configured : `MealAlert <${smtpUser}>`
+    }
+    return configured || `MealAlert <${smtpUser}>`
   }
-  return 'MealAlert <onboarding@resend.dev>'
+
+  return configured || 'MealAlert <onboarding@resend.dev>'
 }
 
 let transporter: nodemailer.Transporter | null = null
