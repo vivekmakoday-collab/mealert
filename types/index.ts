@@ -101,6 +101,18 @@ export interface MealPlanDay {
   dinner: Meal | null
 }
 
+export interface PrepTask {
+  id: string
+  family_id: string
+  task_date: string
+  title: string
+  detail: string | null
+  meal_name: string | null
+  is_done: boolean
+  sort_order: number
+  created_at: string
+}
+
 export interface UsdaFoodResult {
   fdcId: number
   description: string

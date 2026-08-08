@@ -1,8 +1,9 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase-server'
 import Link from 'next/link'
-import type { Meal, MealType } from '@/types'
+import type { Meal, MealType, PrepTask } from '@/types'
 import { MEAL_TYPES, MEAL_TYPE_LABELS } from '@/types'
+import PrepTaskList from '@/components/dashboard/PrepTaskList'
 
 function today() {
   return new Date().toISOString().split('T')[0]
@@ -50,12 +51,19 @@ export default async function DashboardPage() {
 
   const daySelect = '*, breakfast:breakfast_meal_id(*), lunch:lunch_meal_id(*), snack:snack_meal_id(*), dinner:dinner_meal_id(*)'
 
-  const [{ data: planDay }, { data: tomorrowDay }, { data: members }, { count: mealCount }] = await Promise.all([
-    supabase.from('meal_plan_days').select(daySelect).eq('family_id', familyId).eq('plan_date', todayDate).single(),
-    supabase.from('meal_plan_days').select(daySelect).eq('family_id', familyId).eq('plan_date', tomorrowDate).single(),
-    supabase.from('members').select('id, name').eq('family_id', familyId),
-    supabase.from('meals').select('*', { count: 'exact', head: true }).eq('family_id', familyId),
-  ])
+  const [{ data: planDay }, { data: tomorrowDay }, { data: members }, { count: mealCount }, { data: prepTasks }] =
+    await Promise.all([
+      supabase.from('meal_plan_days').select(daySelect).eq('family_id', familyId).eq('plan_date', todayDate).single(),
+      supabase.from('meal_plan_days').select(daySelect).eq('family_id', familyId).eq('plan_date', tomorrowDate).single(),
+      supabase.from('members').select('id, name').eq('family_id', familyId),
+      supabase.from('meals').select('*', { count: 'exact', head: true }).eq('family_id', familyId),
+      supabase
+        .from('prep_tasks')
+        .select('*')
+        .eq('family_id', familyId)
+        .eq('task_date', tomorrowDate)
+        .order('sort_order'),
+    ])
 
   const slots: MealSlot[] = MEAL_TYPES.map(type => ({
     type,
@@ -123,24 +131,24 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Prep banner */}
+      {/* AI prep checklist for tomorrow */}
+      <PrepTaskList
+        initialTasks={(prepTasks ?? []) as PrepTask[]}
+        targetDate={tomorrowDate}
+        targetLabel={tomorrowLabel}
+      />
+
+      {/* Prep-ahead notes recorded on the meals themselves */}
       {prepItems.length > 0 && (
-        <div className="mb-8 rounded-2xl border-l-4 border-amber-400 bg-gradient-to-r from-amber-50 to-orange-50 p-5 shadow-sm">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-2xl">🌙</span>
-            <div>
-              <h2 className="font-bold text-amber-900">Prep tonight</h2>
-              <p className="text-xs text-amber-600">for {tomorrowLabel}</p>
-            </div>
-          </div>
-          <ul className="flex flex-col gap-2">
+        <div className="mb-8 rounded-2xl border-l-4 border-amber-400 bg-gradient-to-r from-amber-50 to-orange-50 p-4 shadow-sm">
+          <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-2">
+            Recipe prep notes for {tomorrowLabel}
+          </p>
+          <ul className="flex flex-col gap-1.5">
             {prepItems.map((item, i) => (
-              <li key={i} className="flex items-start gap-2 text-sm text-amber-900 bg-white/60 rounded-lg px-3 py-2">
-                <span className="mt-0.5">✅</span>
-                <span>
-                  <span className="font-semibold">{item.note}</span>
-                  <span className="text-amber-700"> — {item.slotLabel.replace(/^[^\s]+\s/, '')} · {item.mealName}</span>
-                </span>
+              <li key={i} className="text-sm text-amber-900">
+                <span className="font-semibold">{item.note}</span>
+                <span className="text-amber-700"> — {item.slotLabel.replace(/^[^\s]+\s/, '')} · {item.mealName}</span>
               </li>
             ))}
           </ul>
